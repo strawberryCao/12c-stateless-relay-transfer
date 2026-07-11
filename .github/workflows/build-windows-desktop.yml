@@ -44,7 +44,7 @@ jobs:
           cache-dependency-path: client/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --loglevel=error
 
       - name: Validate public URL
         shell: pwsh
@@ -58,9 +58,30 @@ jobs:
           }
 
       - name: Build NSIS installer
+        id: build
+        continue-on-error: true
+        shell: pwsh
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npm run electron:build
+        run: |
+          npm run electron:build *> electron-build.log
+          $code = $LASTEXITCODE
+          Get-Content electron-build.log -Tail 120
+          exit $code
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: electron-build-log
+          path: client/electron-build.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Fail when installer build failed
+        if: steps.build.outcome == 'failure'
+        shell: pwsh
+        run: throw 'Electron installer build failed; inspect electron-build-log.'
 
       - name: Upload installer
         uses: actions/upload-artifact@v7
