@@ -10,7 +10,6 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $HomeDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoRoot = (Resolve-Path (Join-Path $HomeDir '..\..')).Path
 $ComposeFile = Join-Path $HomeDir 'compose.yaml'
 $EnvFile = Join-Path $HomeDir '.env'
 $RuntimeDir = Join-Path $HomeDir 'runtime'
@@ -21,6 +20,12 @@ $TunnelErrLog = Join-Path $RuntimeDir 'cloudflared.err.log'
 
 function Write-Step([string]$Message) {
     Write-Host "`n==> $Message" -ForegroundColor Cyan
+}
+
+function Write-Utf8NoBom {
+    param([string]$Path, [string[]]$Lines)
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllLines($Path, $Lines, $encoding)
 }
 
 function Invoke-DockerCompose {
@@ -151,14 +156,16 @@ foreach ($name in @('config.yml', 'config.yaml')) {
 
 try {
     $cloudflaredPath = (Get-Command cloudflared).Source
-    $tunnelProcess = Start-Process \
-        -FilePath $cloudflaredPath \
-        -ArgumentList @('tunnel', '--url', "http://127.0.0.1:$GatewayPort", '--no-autoupdate') \
-        -RedirectStandardOutput $TunnelOutLog \
-        -RedirectStandardError $TunnelErrLog \
-        -WindowStyle Hidden \
-        -PassThru
-    Set-Content -LiteralPath $PidFile -Value $tunnelProcess.Id -Encoding ascii
+    $startParameters = @{
+        FilePath = $cloudflaredPath
+        ArgumentList = @('tunnel', '--url', "http://127.0.0.1:$GatewayPort")
+        RedirectStandardOutput = $TunnelOutLog
+        RedirectStandardError = $TunnelErrLog
+        WindowStyle = 'Hidden'
+        PassThru = $true
+    }
+    $tunnelProcess = Start-Process @startParameters
+    Write-Utf8NoBom -Path $PidFile -Lines @([string]$tunnelProcess.Id)
 
     $publicUrl = $null
     for ($i = 1; $i -le 90; $i++) {
@@ -187,7 +194,7 @@ finally {
     }
 }
 
-Set-Content -LiteralPath $PublicUrlFile -Value $publicUrl -Encoding utf8
+Write-Utf8NoBom -Path $PublicUrlFile -Lines @($publicUrl)
 Write-Host "Temporary public URL: $publicUrl" -ForegroundColor Green
 
 Write-Step 'Writing local deployment settings'
@@ -220,7 +227,7 @@ $orderedKeys = @(
 $envLines = foreach ($key in $orderedKeys) {
     "$key=$($settings[$key])"
 }
-Set-Content -LiteralPath $EnvFile -Value $envLines -Encoding utf8
+Write-Utf8NoBom -Path $EnvFile -Lines $envLines
 
 Write-Step 'Validating and building containers'
 Invoke-DockerCompose config | Out-Null
@@ -245,7 +252,6 @@ if ($health.assignmentStatus -ne 'assigned') {
 import json
 import os
 import sys
-import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -330,16 +336,22 @@ if (-not $health.registryApiKeyReady -or -not $health.blockAuthKeyReady) {
 Write-Step 'Starting the localhost-only gateway and management console'
 Invoke-DockerCompose up -d console gateway
 
+$gatewayReady = $false
 for ($i = 1; $i -le 60; $i++) {
     try {
         $response = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$GatewayPort/" -TimeoutSec 3
         if ($response.StatusCode -eq 200) {
+            $gatewayReady = $true
             break
         }
     }
     catch {
         Start-Sleep -Seconds 2
     }
+}
+if (-not $gatewayReady) {
+    Invoke-DockerCompose logs gateway
+    throw 'Local gateway did not become ready.'
 }
 
 Write-Step 'Verifying that control-plane routes are not published'
