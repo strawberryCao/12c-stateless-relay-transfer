@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@stateless-relay/app": "*",
-    "@stateless-relay/transfer": "*"
+    "@stateless-relay/transfer": "*",
+    "qrcode-generator": "2.0.4"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
