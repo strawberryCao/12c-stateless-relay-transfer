@@ -24,7 +24,8 @@ RUN set -eux; \
 
 WORKDIR /src/client
 COPY client/ ./
-RUN bash ./core/twelve_c_wasm/build-wasm.sh
+RUN find . -type f -name '*.sh' -exec sed -i 's/\r$//' {} + \
+    && bash ./core/twelve_c_wasm/build-wasm.sh
 
 FROM node:24-bookworm-slim AS web-build
 
@@ -32,7 +33,8 @@ WORKDIR /src/client
 COPY client/ ./
 COPY --from=wasm-build /src/client/transfer/src/wasm/pkg/twelve_c_cryptography.js ./transfer/src/wasm/pkg/twelve_c_cryptography.js
 COPY --from=wasm-build /src/client/transfer/src/wasm/pkg/twelve_c_cryptography.wasm ./transfer/src/wasm/pkg/twelve_c_cryptography.wasm
-RUN chmod 0755 ./build.sh ./build-ts.sh \
+RUN find . -type f -name '*.sh' -exec sed -i 's/\r$//' {} + \
+    && chmod 0755 ./build.sh ./build-ts.sh \
     && npm ci --ignore-scripts \
     && bash ./build.sh --skip-wasm --production
 
@@ -42,7 +44,8 @@ COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY deploy/entrypoints/gateway.sh /usr/local/bin/gateway-entrypoint
 COPY --from=web-build /src/client/web/dist /srv
 
-RUN chmod 0755 /usr/local/bin/gateway-entrypoint
+RUN sed -i 's/\r$//' /usr/local/bin/gateway-entrypoint \
+    && chmod 0755 /usr/local/bin/gateway-entrypoint
 
 EXPOSE 80 443
 ENTRYPOINT ["/usr/local/bin/gateway-entrypoint"]
