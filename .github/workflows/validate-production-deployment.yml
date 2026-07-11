@@ -1,0 +1,61 @@
+name: Validate production deployment
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - deploy/**
+      - server/registry/**
+      - server/relay/**
+      - server/console/**
+      - .dockerignore
+      - .github/workflows/validate-production-deployment.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Validate Python syntax and JSON templates
+        run: |
+          python -m compileall -q server/registry server/relay server/console deploy/render_config.py
+          export RELAY_DOMAIN=relay.example.test
+          export REGISTRY_ADMIN_API_KEY=registry-test-key
+          export RELAY_ADMIN_API_KEY=relay-test-key
+          python deploy/render_config.py deploy/config/relay_server.config.template.json /tmp/relay.json
+          python deploy/render_config.py deploy/config/console_server.config.template.json /tmp/console.json
+          python -m json.tool deploy/config/registry_server.config.json >/dev/null
+          python -m json.tool /tmp/relay.json >/dev/null
+          python -m json.tool /tmp/console.json >/dev/null
+
+      - name: Validate Docker Compose model
+        working-directory: deploy
+        run: |
+          cp .env.example .env
+          sed -i 's/app.example.com/app.example.test/' .env
+          sed -i 's/api.example.com/api.example.test/' .env
+          sed -i 's/relay.example.com/relay.example.test/' .env
+          sed -i 's/admin@example.com/admin@example.test/' .env
+          sed -i 's/REPLACE_WITH_RANDOM_REGISTRY_ADMIN_KEY/registry-test-key/' .env
+          sed -i 's/REPLACE_WITH_RANDOM_RELAY_ADMIN_KEY/relay-test-key/' .env
+          sed -i 's/REPLACE_WITH_URLSAFE_BASE64_MASTER_KEY/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/' .env
+          docker compose --env-file .env -f compose.yaml config >/dev/null
+
+      - name: Build server images
+        working-directory: deploy
+        run: |
+          docker compose --env-file .env -f compose.yaml build registry relay console
