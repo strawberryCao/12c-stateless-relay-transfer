@@ -1,0 +1,126 @@
+name: twelve-c-home
+
+services:
+  registry:
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile.registry
+    restart: unless-stopped
+    init: true
+    environment:
+      REGISTRY_ADMIN_API_KEY: ${REGISTRY_ADMIN_API_KEY:?set REGISTRY_ADMIN_API_KEY}
+      REGISTRY_BLOCK_AUTH_MASTER_KEY: ${REGISTRY_BLOCK_AUTH_MASTER_KEY:?set REGISTRY_BLOCK_AUTH_MASTER_KEY}
+    expose:
+      - "8080"
+    volumes:
+      - type: bind
+        source: ${DATA_ROOT}/registry
+        target: /data
+    tmpfs:
+      - /tmp
+      - /run/12c:uid=10001,gid=10001,mode=0750
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - control
+
+  relay:
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile.relay
+    restart: unless-stopped
+    init: true
+    environment:
+      PUBLIC_RELAY_BASE_URL: ${PUBLIC_RELAY_BASE_URL:?set PUBLIC_RELAY_BASE_URL}
+      RELAY_ADMIN_API_KEY: ${RELAY_ADMIN_API_KEY:?set RELAY_ADMIN_API_KEY}
+    expose:
+      - "9090"
+    volumes:
+      - type: bind
+        source: ${DATA_ROOT}/relay
+        target: /data
+      - type: bind
+        source: ./relay_server.config.template.json
+        target: /opt/12c/config/relay_server.config.template.json
+        read_only: true
+    tmpfs:
+      - /tmp
+      - /run/12c:uid=10001,gid=10001,mode=0750
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/health', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 15s
+    networks:
+      - control
+
+  console:
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile.console
+    restart: unless-stopped
+    init: true
+    environment:
+      REGISTRY_ADMIN_API_KEY: ${REGISTRY_ADMIN_API_KEY:?set REGISTRY_ADMIN_API_KEY}
+      RELAY_ADMIN_API_KEY: ${RELAY_ADMIN_API_KEY:?set RELAY_ADMIN_API_KEY}
+    ports:
+      - "127.0.0.1:${HOME_CONSOLE_PORT:-8070}:8070"
+    tmpfs:
+      - /tmp
+      - /run/12c:uid=10001,gid=10001,mode=0750
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      registry:
+        condition: service_healthy
+      relay:
+        condition: service_healthy
+    networks:
+      - control
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile.gateway
+    restart: unless-stopped
+    environment:
+      PUBLIC_REGISTRY_URL: ${PUBLIC_URL:?set PUBLIC_URL}
+    ports:
+      - "127.0.0.1:${HOME_GATEWAY_PORT:-8088}:8088"
+    volumes:
+      - type: bind
+        source: ./Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+    depends_on:
+      registry:
+        condition: service_healthy
+      relay:
+        condition: service_healthy
+    networks:
+      - control
+
+networks:
+  control:
+    internal: true
