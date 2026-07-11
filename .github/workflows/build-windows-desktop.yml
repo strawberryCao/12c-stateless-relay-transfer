@@ -7,9 +7,21 @@ on:
         description: Public HTTPS app URL, for example https://app.example.com
         required: true
         type: string
+  pull_request:
+    branches:
+      - main
+    paths:
+      - client/electron/**
+      - client/package.json
+      - client/package-lock.json
+      - client/electron-builder.yml
+      - .github/workflows/build-windows-desktop.yml
 
 permissions:
   contents: read
+
+env:
+  TWELVEC_APP_URL: ${{ inputs.app_url || vars.PUBLIC_APP_URL || 'https://app.example.com' }}
 
 jobs:
   build-windows:
@@ -36,8 +48,6 @@ jobs:
 
       - name: Validate public URL
         shell: pwsh
-        env:
-          TWELVEC_APP_URL: ${{ inputs.app_url }}
         run: |
           $uri = [Uri]$env:TWELVEC_APP_URL
           if ($uri.Scheme -ne 'https') {
@@ -49,7 +59,6 @@ jobs:
 
       - name: Build NSIS installer
         env:
-          TWELVEC_APP_URL: ${{ inputs.app_url }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run electron:build
 
