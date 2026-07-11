@@ -1,9 +1,26 @@
 FROM emscripten/emsdk:latest AS wasm-build
 
 USER root
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl perl make cmake \
-    && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    find /etc/apt -type f -name '*.sources' -exec sed -i \
+      -e 's|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+      -e 's|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g' \
+      -e 's/ noble-backports//g' {} +; \
+    find /etc/apt -type f -name '*.list' -exec sed -i \
+      -e 's|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+      -e 's|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g' \
+      -e '/noble-backports/s/^/# disabled for reproducible build: /' {} +; \
+    for attempt in 1 2 3 4 5; do \
+      if apt-get -o Acquire::Retries=3 update; then \
+        break; \
+      fi; \
+      if [ "$attempt" -eq 5 ]; then \
+        exit 1; \
+      fi; \
+      sleep $((attempt * 5)); \
+    done; \
+    apt-get install -y --no-install-recommends ca-certificates curl perl make cmake; \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src/client
 COPY client/ ./
