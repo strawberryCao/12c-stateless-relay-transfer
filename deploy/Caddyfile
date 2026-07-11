@@ -1,0 +1,56 @@
+{
+  email {$ACME_EMAIL}
+  admin off
+}
+
+(security_headers) {
+  encode zstd gzip
+  header {
+    -Server
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "no-referrer"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  }
+}
+
+{$APP_DOMAIN} {
+  import security_headers
+  root * /srv
+  try_files {path} /index.html
+  file_server
+}
+
+{$API_DOMAIN} {
+  import security_headers
+
+  @public_client_api {
+    method POST OPTIONS
+    path /api/relay/resolve /api/relay/reserve-tokens /api/relay/abandon-replica-placements
+  }
+
+  handle @public_client_api {
+    reverse_proxy registry:8080
+  }
+
+  handle {
+    respond "Not found" 404
+  }
+}
+
+{$RELAY_DOMAIN} {
+  import security_headers
+
+  @public_block_api {
+    method GET PUT OPTIONS
+    path_regexp block ^/[0-9a-fA-F]{64}$
+  }
+
+  handle @public_block_api {
+    reverse_proxy relay:9090
+  }
+
+  handle {
+    respond "Not found" 404
+  }
+}
