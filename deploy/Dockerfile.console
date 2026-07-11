@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN useradd --system --uid 10001 --create-home app
 WORKDIR /app/server
 
-COPY server/local_secrets.py ./local_secrets.py
+COPY server/local_secrets ./local_secrets
 COPY server/console/requirements.txt ./console/requirements.txt
 RUN pip install -r ./console/requirements.txt
 COPY server/console ./console
