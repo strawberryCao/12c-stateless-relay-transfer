@@ -1,7 +1,20 @@
-FROM node:22-bookworm-slim AS web-build
+FROM emscripten/emsdk:latest AS wasm-build
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl perl make cmake \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src/client
 COPY client/ ./
+RUN bash ./core/twelve_c_wasm/build-wasm.sh
+
+FROM node:24-bookworm-slim AS web-build
+
+WORKDIR /src/client
+COPY client/ ./
+COPY --from=wasm-build /src/client/transfer/src/wasm/pkg/twelve_c_cryptography.js ./transfer/src/wasm/pkg/twelve_c_cryptography.js
+COPY --from=wasm-build /src/client/transfer/src/wasm/pkg/twelve_c_cryptography.wasm ./transfer/src/wasm/pkg/twelve_c_cryptography.wasm
 RUN npm ci --ignore-scripts \
     && bash ./build.sh --skip-wasm --production
 
