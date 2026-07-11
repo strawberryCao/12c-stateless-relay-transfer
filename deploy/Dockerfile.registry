@@ -15,7 +15,8 @@ COPY server/registry ./registry
 COPY deploy/config/registry_server.config.json /opt/12c/config/registry_server.config.json
 COPY deploy/entrypoints/registry.sh /usr/local/bin/registry-entrypoint
 
-RUN chmod 0755 /usr/local/bin/registry-entrypoint \
+RUN sed -i 's/\r$//' /usr/local/bin/registry-entrypoint \
+    && chmod 0755 /usr/local/bin/registry-entrypoint \
     && mkdir -p /data /run/12c \
     && chown -R app:app /data /run/12c /app/server
 

@@ -16,7 +16,8 @@ COPY deploy/render_config.py /opt/12c/render_config.py
 COPY deploy/config/relay_server.config.template.json /opt/12c/config/relay_server.config.template.json
 COPY deploy/entrypoints/relay.sh /usr/local/bin/relay-entrypoint
 
-RUN chmod 0755 /usr/local/bin/relay-entrypoint \
+RUN sed -i 's/\r$//' /usr/local/bin/relay-entrypoint \
+    && chmod 0755 /usr/local/bin/relay-entrypoint \
     && mkdir -p /data /run/12c \
     && chown -R app:app /data /run/12c /app/server
 
