@@ -1,0 +1,45 @@
+name: Validate web client
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - client/web/**
+      - client/app/**
+      - client/transfer/**
+      - client/package.json
+      - client/package-lock.json
+      - deploy/Dockerfile.gateway
+      - .github/workflows/validate-web-client.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci --ignore-scripts
+
+      - name: Type-check web client
+        working-directory: client
+        run: npm run typecheck --workspace @stateless-relay/web
+
+      - name: Build Web and WASM bundle
+        run: docker build --target web-build -f deploy/Dockerfile.gateway .
