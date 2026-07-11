@@ -5,6 +5,7 @@ artifactName: 12C-Transfer-${version}-${arch}.${ext}
 asar: true
 
 directories:
+  app: .
   output: release
 
 files:
