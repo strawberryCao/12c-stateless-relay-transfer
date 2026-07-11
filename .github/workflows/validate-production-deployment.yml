@@ -19,7 +19,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
 
     steps:
       - name: Check out source
@@ -34,15 +34,30 @@ jobs:
         run: |
           python -m compileall -q server/registry server/relay server/console deploy/render_config.py
           export RELAY_DOMAIN=relay.example.test
+          export PUBLIC_RELAY_BASE_URL=https://temporary.trycloudflare.com/block
           export REGISTRY_ADMIN_API_KEY=registry-test-key
           export RELAY_ADMIN_API_KEY=relay-test-key
           python deploy/render_config.py deploy/config/relay_server.config.template.json /tmp/relay.json
+          python deploy/render_config.py deploy/home/relay_server.config.template.json /tmp/home-relay.json
           python deploy/render_config.py deploy/config/console_server.config.template.json /tmp/console.json
           python -m json.tool deploy/config/registry_server.config.json >/dev/null
           python -m json.tool /tmp/relay.json >/dev/null
+          python -m json.tool /tmp/home-relay.json >/dev/null
           python -m json.tool /tmp/console.json >/dev/null
 
-      - name: Validate Docker Compose model
+      - name: Validate PowerShell home-server scripts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($path in @(
+            'deploy/home/start-home.ps1',
+            'deploy/home/stop-home.ps1',
+            'deploy/home/status-home.ps1'
+          )) {
+            [void][scriptblock]::Create((Get-Content -LiteralPath $path -Raw))
+          }
+
+      - name: Validate production Docker Compose model
         working-directory: deploy
         run: |
           cp .env.example .env
@@ -55,7 +70,44 @@ jobs:
           sed -i 's/REPLACE_WITH_URLSAFE_BASE64_MASTER_KEY/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/' .env
           docker compose --env-file .env -f compose.yaml config >/dev/null
 
+      - name: Validate home-server Docker Compose model
+        working-directory: deploy
+        run: |
+          mkdir -p /tmp/12c-home-data/registry /tmp/12c-home-data/relay
+          cat > home/.env <<'EOF'
+          DATA_ROOT=/tmp/12c-home-data
+          PUBLIC_URL=https://temporary.trycloudflare.com
+          PUBLIC_RELAY_BASE_URL=https://temporary.trycloudflare.com/block
+          HOME_GATEWAY_PORT=8088
+          HOME_CONSOLE_PORT=8070
+          REGISTRY_ADMIN_API_KEY=registry-test-key
+          RELAY_ADMIN_API_KEY=relay-test-key
+          REGISTRY_BLOCK_AUTH_MASTER_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          EOF
+          docker compose --env-file home/.env -f home/compose.yaml config >/dev/null
+
       - name: Build server images
         working-directory: deploy
         run: |
           docker compose --env-file .env -f compose.yaml build registry relay console
+
+      - name: Build Web and WASM gateway image
+        id: gateway_build
+        continue-on-error: true
+        working-directory: deploy
+        run: |
+          set -o pipefail
+          docker compose --env-file home/.env -f home/compose.yaml build gateway 2>&1 | tee gateway-build.log
+
+      - name: Upload gateway build log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gateway-build-log
+          path: deploy/gateway-build.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Fail when gateway build failed
+        if: steps.gateway_build.outcome == 'failure'
+        run: exit 1

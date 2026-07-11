@@ -15,7 +15,8 @@ WORKDIR /src/client
 COPY client/ ./
 COPY --from=wasm-build /src/client/transfer/src/wasm/pkg/twelve_c_cryptography.js ./transfer/src/wasm/pkg/twelve_c_cryptography.js
 COPY --from=wasm-build /src/client/transfer/src/wasm/pkg/twelve_c_cryptography.wasm ./transfer/src/wasm/pkg/twelve_c_cryptography.wasm
-RUN npm ci --ignore-scripts \
+RUN chmod 0755 ./build.sh ./build-ts.sh \
+    && npm ci --ignore-scripts \
     && bash ./build.sh --skip-wasm --production
 
 FROM caddy:2.10-alpine

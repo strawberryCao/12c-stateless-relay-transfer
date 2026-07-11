@@ -28,6 +28,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Windows 家庭服务器的临时公网 URL、PID 与隧道日志
+deploy/home/runtime/
+
 # --- Node / Client (workspaces) -------------------------------------------------
 
 node_modules/
