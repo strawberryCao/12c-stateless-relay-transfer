@@ -29,6 +29,14 @@
     reverse_proxy relay:9090
   }
 
+  @blocked_control_plane {
+    path /api/* /health /block/*
+  }
+
+  handle @blocked_control_plane {
+    respond "Not found" 404
+  }
+
   handle {
     root * /srv
     try_files {path} /index.html
