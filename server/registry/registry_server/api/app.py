@@ -27,9 +27,9 @@ def create_app(config: RegistryServerConfig | None = None) -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=list(settings.cors_allowed_origins),
+        allow_methods=["POST", "OPTIONS"],
+        allow_headers=["Content-Type"],
     )
 
     @app.get("/health")

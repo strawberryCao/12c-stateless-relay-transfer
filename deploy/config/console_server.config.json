@@ -1,0 +1,11 @@
+{
+  "host": "0.0.0.0",
+  "port": 8070,
+  "registryBaseUrl": "http://registry:8080",
+  "relayBaseUrl": "http://relay:9090",
+  "staticDir": "/app/server/console/static",
+  "registryDir": "/app/server/registry",
+  "relayDir": "/app/server/relay",
+  "registryConfig": "/config/registry_server.config.json",
+  "relayConfig": "/config/relay_server.config.json"
+}

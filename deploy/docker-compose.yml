@@ -1,0 +1,139 @@
+name: twelve-c-transfer
+
+services:
+  registry:
+    build:
+      context: ..
+      dockerfile: deploy/server.Dockerfile
+      args:
+        SERVICE: registry
+    command: ["python", "-m", "registry_server", "--config", "/config/registry_server.config.json"]
+    environment:
+      REGISTRY_ADMIN_API_KEY: ${REGISTRY_ADMIN_API_KEY:?set in deploy/.env}
+      REGISTRY_BLOCK_AUTH_MASTER_KEY: ${REGISTRY_BLOCK_AUTH_MASTER_KEY:?set in deploy/.env}
+      CORS_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:?set in deploy/.env},null
+    volumes:
+      - ./config:/config:ro
+      - registry_data:/data
+    expose: ["8080"]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [backend]
+
+  relay:
+    build:
+      context: ..
+      dockerfile: deploy/server.Dockerfile
+      args:
+        SERVICE: relay
+    command: ["python", "-m", "relay_server", "--config", "/config/relay_server.config.json"]
+    environment:
+      RELAY_ADMIN_API_KEY: ${RELAY_ADMIN_API_KEY:?set in deploy/.env}
+      REGISTRY_ADMIN_API_KEY: ${REGISTRY_ADMIN_API_KEY:?set in deploy/.env}
+      REGISTRY_URL: http://registry:8080
+      RELAY_PUBLIC_BASE_URL: ${PUBLIC_ORIGIN:?set in deploy/.env}/relay
+      CORS_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:?set in deploy/.env},null
+    volumes:
+      - ./config:/config:ro
+      - relay_data:/data
+    expose: ["9090"]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 768m
+    depends_on:
+      registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [backend]
+
+  console:
+    build:
+      context: ..
+      dockerfile: deploy/server.Dockerfile
+      args:
+        SERVICE: console
+    command: ["python", "-m", "console_server", "--config", "/config/console_server.config.json"]
+    environment:
+      REGISTRY_ADMIN_API_KEY: ${REGISTRY_ADMIN_API_KEY:?set in deploy/.env}
+      RELAY_ADMIN_API_KEY: ${RELAY_ADMIN_API_KEY:?set in deploy/.env}
+    volumes:
+      - ./config:/config:ro
+    ports:
+      - "127.0.0.1:${CONSOLE_PORT:-8070}:8070"
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 256m
+    depends_on:
+      registry:
+        condition: service_healthy
+      relay:
+        condition: service_healthy
+    networks: [backend]
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/gateway/Dockerfile
+    expose: ["8080"]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 256m
+    depends_on:
+      registry:
+        condition: service_healthy
+      relay:
+        condition: service_healthy
+    networks: [backend, edge]
+
+  caddy:
+    image: caddy:2.10-alpine
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?set in deploy/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 256m
+    depends_on: [gateway]
+    networks: [edge]
+
+networks:
+  backend:
+    internal: true
+  edge:
+
+volumes:
+  registry_data:
+  relay_data:
+  caddy_data:
+  caddy_config:

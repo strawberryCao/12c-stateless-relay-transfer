@@ -9,6 +9,7 @@
   "heartbeatIntervalSeconds": 30,
   "blockMaxAgeSeconds": 86400,
   "blockSweepIntervalSeconds": 3600,
+  "corsAllowedOrigins": ["http://127.0.0.1:5173", "http://localhost:5173", "null"],
   "registryApiKeyStorePath": "./data/secrets/registry_api_key.json",
   "registryApiKeyInitialUses": 100,
   "registry": {

@@ -35,7 +35,7 @@ class HeartbeatRequest(BaseModel):
 
 
 class ResolveRequest(BaseModel):
-    tokens: list[str]
+    tokens: list[str] = Field(max_length=4096)
 
 
 class BlockHashRegistration(BaseModel):
@@ -44,7 +44,7 @@ class BlockHashRegistration(BaseModel):
 
 
 class ReserveTokensRequest(BaseModel):
-    blocks: list[BlockHashRegistration]
+    blocks: list[BlockHashRegistration] = Field(max_length=4096)
     ttlSeconds: int | None = Field(default=None, ge=1, le=86400)
 
 
@@ -54,7 +54,7 @@ class ReplicaPlacementFailure(BaseModel):
 
 
 class AbandonReplicaPlacementsRequest(BaseModel):
-    failures: list[ReplicaPlacementFailure]
+    failures: list[ReplicaPlacementFailure] = Field(max_length=4096)
 
 
 class AddAllowlistEntryRequest(BaseModel):

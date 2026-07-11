@@ -1,6 +1,10 @@
 {
   "name": "stateless-relay-client",
   "private": true,
+  "version": "0.1.0",
+  "description": "12C end-to-end encrypted stateless relay file transfer client",
+  "author": "12C Project Team",
+  "main": "electron/main.js",
   "workspaces": [
     "transfer",
     "app",
@@ -21,11 +25,40 @@
     "build:openssl:wasm:sh": "bash ./core/twelve_c_wasm/build-openssl-emscripten.sh",
     "build:native": "powershell -ExecutionPolicy Bypass -File ./core/build-native.ps1",
     "build:native:sh": "bash ./core/build-native.sh",
-    "electron:dev": "NODE_ENV=development electron electron/main.js",
-    "electron:build": "npm run build:prod && electron-builder"
+    "electron:dev": "cross-env NODE_ENV=development electron electron/main.js",
+    "electron:build": "npm run build:prod && electron-builder --publish never",
+    "electron:build:win": "electron-builder --win nsis --publish never",
+    "electron:build:linux": "electron-builder --linux AppImage --publish never"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "electron": "^43.1.0",
     "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "edu.stu.twelvec.transfer",
+    "productName": "12C Transfer",
+    "asar": true,
+    "directories": {
+      "app": ".",
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "web/dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Network"
+    }
   }
 }

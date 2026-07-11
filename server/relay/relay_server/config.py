@@ -45,13 +45,14 @@ class RelayServerConfig:
     block_max_age_seconds: int
     block_sweep_interval_seconds: int
     admin_api_key: str | None = None
+    cors_allowed_origins: tuple[str, ...] = ("*",)
 
     @classmethod
     def from_dict(cls, value: dict) -> RelayServerConfig:
         host = _require_str(value.get("host"), "host", default="0.0.0.0")
         port = _require_int(value.get("port"), "port", default=9090)
         public_base_url = _require_str(
-            value.get("publicBaseUrl"),
+            os.environ.get("RELAY_PUBLIC_BASE_URL") or value.get("publicBaseUrl"),
             "publicBaseUrl",
             default=f"http://127.0.0.1:{port}",
         )
@@ -118,6 +119,9 @@ class RelayServerConfig:
             default=3600,
         )
         admin_api_key = _load_admin_api_key(value.get("adminApiKey"))
+        cors_allowed_origins = _parse_cors_allowed_origins(
+            value.get("corsAllowedOrigins"),
+        )
         return cls(
             host=host,
             port=port,
@@ -136,6 +140,7 @@ class RelayServerConfig:
             block_max_age_seconds=block_max_age_seconds,
             block_sweep_interval_seconds=block_sweep_interval_seconds,
             admin_api_key=admin_api_key,
+            cors_allowed_origins=cors_allowed_origins,
         )
 
 
@@ -155,7 +160,7 @@ def _load_admin_api_key(value: object) -> str | None:
 def _parse_registry(value: object) -> RegistryConfig:
     if not isinstance(value, dict):
         raise ValueError('config missing "registry" object with "url"')
-    url = value.get("url")
+    url = os.environ.get("REGISTRY_URL") or value.get("url")
     if not isinstance(url, str) or not url:
         raise ValueError('registry.url must be a non-empty string')
     http_proxy = value.get("httpProxy")
@@ -240,7 +245,21 @@ def _load_from_path(path: Path) -> RelayServerConfig:
         block_max_age_seconds=config.block_max_age_seconds,
         block_sweep_interval_seconds=config.block_sweep_interval_seconds,
         admin_api_key=config.admin_api_key,
+        cors_allowed_origins=config.cors_allowed_origins,
     )
+
+
+def _parse_cors_allowed_origins(value: object) -> tuple[str, ...]:
+    env = os.environ.get("CORS_ALLOWED_ORIGINS")
+    if env is not None:
+        return tuple(item.strip() for item in env.split(",") if item.strip())
+    if value is None:
+        return ("*",)
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) or not item.strip() for item in value
+    ):
+        raise ValueError("corsAllowedOrigins must be an array of non-empty strings")
+    return tuple(item.strip() for item in value)
 
 
 def _resolve_path(base_dir: Path, value: Path) -> Path:

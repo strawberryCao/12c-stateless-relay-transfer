@@ -12,8 +12,8 @@ import { DEFAULT_FILE_TTL_SECONDS } from './file-ttl.js';
 
 const REGISTRY_URL_STORAGE_KEY = 'stateless-relay.registryUrl';
 const FILE_TTL_SECONDS_STORAGE_KEY = 'stateless-relay.fileTtlSeconds';
-const WASM_JS_URL = '/wasm/twelve_c_cryptography.js';
-const WASM_BINARY_URL = '/wasm/twelve_c_cryptography.wasm';
+const WASM_JS_URL = './wasm/twelve_c_cryptography.js';
+const WASM_BINARY_URL = './wasm/twelve_c_cryptography.wasm';
 
 export interface ClientRuntime {
   twelveC: TwelveCClient;
@@ -102,7 +102,7 @@ export function getEffectiveFileTtlSeconds(): number {
 }
 
 export async function loadEffectiveConfig(): Promise<TransferConfig> {
-  const config = await loadTransferConfigFromUrl('/relay.config.json');
+  const config = await loadTransferConfigFromUrl('./relay.config.json');
   const storedUrl = readStoredRegistryUrl();
   if (storedUrl) {
     config.registry.url = storedUrl;

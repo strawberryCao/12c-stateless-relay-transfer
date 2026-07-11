@@ -1,0 +1,6 @@
+{
+  "registry": {
+    "url": "/registry",
+    "coalesce": true
+  }
+}

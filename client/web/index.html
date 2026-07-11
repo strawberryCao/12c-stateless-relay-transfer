@@ -6,11 +6,8 @@
     <meta name="description" content="12C 端到端加密文件传输 — 无状态中继，12位带外凭证" />
     <meta name="theme-color" content="#ffffff" />
     <title>12C 文件传输</title>
-    <!-- 预连接默认 Registry，加速首次 API 调用 -->
-    <link rel="preconnect" href="http://127.0.0.1:8080" />
-    <link rel="dns-prefetch" href="http://127.0.0.1:8080" />
     <!-- 预加载 WASM 加密模块 -->
-    <link rel="modulepreload" href="/wasm/twelve_c_cryptography.js" />
+    <link rel="modulepreload" href="./wasm/twelve_c_cryptography.js" />
     <!-- 内联启动屏关键 CSS，消除白屏闪烁 -->
     <style>
       :root{color-scheme:light;--bg:#ffffff;--surface:#f8fafc;--surface2:#f1f5f9;--border:#e2e8f0;--text:#1e293b;--text-strong:#0f172a;--muted:#64748b;--accent:#0369a1;--accent-dim:#0c4a6e;--radius:10px;font-family:"Segoe UI",system-ui,sans-serif}
@@ -23,7 +20,7 @@
       .boot-progress{height:8px;background:var(--surface2);border-radius:999px;overflow:hidden}
       .boot-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#0c4a6e,#0369a1);transition:width .2s ease}
     </style>
-    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="./src/styles.css" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><defs><linearGradient id='g' x1='4' y1='2' x2='20' y2='21'><stop offset='0' stop-color='%237c7bff'/><stop offset='1' stop-color='%2322d3ee'/></linearGradient></defs><path d='M12 2 4 5.5v6c0 5 3.4 8.7 8 9.5 4.6-.8 8-4.5 8-9.5v-6L12 2z' fill='url(%23g)'/></svg>" />
   </head>
   <body>
@@ -411,6 +408,6 @@
       </main>
     </div>
 
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

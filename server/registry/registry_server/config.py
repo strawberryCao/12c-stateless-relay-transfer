@@ -50,6 +50,7 @@ class RegistryServerConfig:
     relay_heartbeat_stale_seconds: int
     admin_api_key: str | None = None
     heartbeat_url_policy: str = HEARTBEAT_URL_POLICY_SYNC_IF_UNSET
+    cors_allowed_origins: tuple[str, ...] = ("*",)
 
     @classmethod
     def from_dict(cls, value: dict) -> RegistryServerConfig:
@@ -84,6 +85,9 @@ class RegistryServerConfig:
         )
         admin_api_key = _load_admin_api_key(value.get("adminApiKey"))
         heartbeat_url_policy = _parse_heartbeat_url_policy(value.get("heartbeatUrlPolicy"))
+        cors_allowed_origins = _parse_cors_allowed_origins(
+            value.get("corsAllowedOrigins"),
+        )
         return cls(
             host=host,
             port=port,
@@ -96,6 +100,7 @@ class RegistryServerConfig:
             relay_heartbeat_stale_seconds=relay_heartbeat_stale_seconds,
             admin_api_key=admin_api_key,
             heartbeat_url_policy=heartbeat_url_policy,
+            cors_allowed_origins=cors_allowed_origins,
         )
 
 
@@ -280,7 +285,21 @@ def _load_from_path(path: Path) -> RegistryServerConfig:
         relay_heartbeat_stale_seconds=config.relay_heartbeat_stale_seconds,
         admin_api_key=config.admin_api_key,
         heartbeat_url_policy=config.heartbeat_url_policy,
+        cors_allowed_origins=config.cors_allowed_origins,
     )
+
+
+def _parse_cors_allowed_origins(value: object) -> tuple[str, ...]:
+    env = os.environ.get("CORS_ALLOWED_ORIGINS")
+    if env is not None:
+        return tuple(item.strip() for item in env.split(",") if item.strip())
+    if value is None:
+        return ("*",)
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) or not item.strip() for item in value
+    ):
+        raise ValueError("corsAllowedOrigins must be an array of non-empty strings")
+    return tuple(item.strip() for item in value)
 
 
 def load_block_auth_master_key(value: object) -> bytes:

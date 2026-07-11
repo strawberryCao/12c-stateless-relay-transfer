@@ -1,0 +1,19 @@
+{
+  "host": "0.0.0.0",
+  "port": 9090,
+  "publicBaseUrl": "http://invalid.local/relay",
+  "maxBodyBytes": 16777216,
+  "maxBlocks": 100000,
+  "dataDir": "/data/blocks",
+  "databasePath": "/data/relay.db",
+  "heartbeatIntervalSeconds": 30,
+  "blockMaxAgeSeconds": 86400,
+  "blockSweepIntervalSeconds": 3600,
+  "corsAllowedOrigins": [],
+  "registryApiKeyStorePath": "/data/secrets/registry_api_key.json",
+  "registryApiKeyInitialUses": 100,
+  "registry": {
+    "url": "http://registry:8080",
+    "autoRegisterOnStartup": true
+  }
+}

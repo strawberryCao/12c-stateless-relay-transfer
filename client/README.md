@@ -70,3 +70,20 @@ cd client
 ```
 
 完整联调说明见仓库根目录 [`HOW_TO_SETUP.md`](../HOW_TO_SETUP.md)。
+
+## 桌面安装包
+
+仓库 CI 会先构建 WASM 与 Web，再分别产出 Windows NSIS 安装包和 Linux
+AppImage。下载对应 `build-and-test` 工作流运行中的
+`12c-desktop-windows` / `12c-desktop-linux` artifact 即可。
+
+本地已有 `web/dist` 时，也可以执行：
+
+```bash
+npm run electron:build:win
+npm run electron:build:linux
+```
+
+桌面壳默认加载打包内的 Web 静态资源；设置 `TWELVE_C_APP_URL` 后可改为加载
+指定的 HTTPS 部署地址。桌面窗口禁用了 Node 集成、导航跳转和新窗口，并启用
+context isolation 与 Chromium sandbox。

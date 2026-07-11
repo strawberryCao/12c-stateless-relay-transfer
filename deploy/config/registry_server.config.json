@@ -1,19 +1,19 @@
 {
   "host": "0.0.0.0",
   "port": 8080,
-  "databasePath": "./data/registry.db",
+  "databasePath": "/data/registry.db",
   "registryApiKeyInitialUses": 100,
   "placementPolicy": {
-    "stripeTargetRelays": 3,
-    "maxFileReplicaCount": 1,
-    "maxReplicasPerBlock": 2,
+    "stripeTargetRelays": 1,
+    "maxFileReplicaCount": 0,
+    "maxReplicasPerBlock": 1,
     "minGrantTtlSeconds": 3600,
     "clockSkewSeconds": 60,
     "maxRequestedTtlSeconds": 86400,
     "ttlDegradeStepDivisor": 4
   },
   "relayHeartbeatStaleSeconds": 120,
-  "heartbeatUrlPolicy": "sync_if_unset",
-  "corsAllowedOrigins": ["http://127.0.0.1:5173", "http://localhost:5173", "null"],
+  "heartbeatUrlPolicy": "strict",
+  "corsAllowedOrigins": [],
   "allowlist": []
 }

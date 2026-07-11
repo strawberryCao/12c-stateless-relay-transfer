@@ -100,9 +100,9 @@ def create_app(config: RelayServerConfig | None = None) -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=list(settings.cors_allowed_origins),
+        allow_methods=["GET", "PUT", "OPTIONS"],
+        allow_headers=["Content-Type"],
     )
 
     app.include_router(

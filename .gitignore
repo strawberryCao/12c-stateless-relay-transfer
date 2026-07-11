@@ -36,6 +36,7 @@ node_modules/
 # TypeScript / Vite 构建产物
 client/**/dist/
 client/**/.vite/
+client/release/
 *.tsbuildinfo
 
 # WASM 二进制（由 build-wasm + copy:wasm 生成）
@@ -45,6 +46,7 @@ client/**/.vite/
 **/relay.config.json
 !**/relay.config.example.json
 !client/web/public/relay.config.json
+!deploy/gateway/relay.config.json
 
 # --- Python / Server ------------------------------------------------------------
 
@@ -73,6 +75,7 @@ htmlcov/
 # 本地服务配置（从 *.config.example.json 复制；密钥单独见 *.secrets.json）
 **/*_server.config.json
 !**/*_server.config.example.json
+!deploy/config/*_server.config.json
 
 # 自动生成的 Admin / 主密钥等（切勿提交）
 *.secrets.json

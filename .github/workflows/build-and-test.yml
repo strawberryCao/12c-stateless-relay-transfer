@@ -1,0 +1,95 @@
+name: build-and-test
+
+on:
+  push:
+    branches: [main, dev, "deploy/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            server/registry/requirements.txt
+            server/relay/requirements.txt
+      - name: Install backend dependencies
+        run: pip install -r server/registry/requirements.txt -r server/relay/requirements.txt
+      - name: Registry tests
+        working-directory: server/registry
+        run: pytest -q
+      - name: Relay tests
+        working-directory: server/relay
+        run: pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install Emscripten and build WASM
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install latest
+          "$RUNNER_TEMP/emsdk/emsdk" activate latest
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          client/core/twelve_c_wasm/build-wasm.sh "$RUNNER_TEMP/emsdk"
+      - name: Build production Web client
+        working-directory: client
+        run: |
+          npm ci
+          npm run build -w @stateless-relay/web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 12c-web
+          path: client/web/dist
+          if-no-files-found: error
+
+  desktop:
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            command: npm run electron:build:win
+            artifact: 12c-desktop-windows
+          - os: ubuntu-latest
+            command: npm run electron:build:linux
+            artifact: 12c-desktop-linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: 12c-web
+          path: client/web/dist
+      - name: Install desktop dependencies
+        working-directory: client
+        run: npm ci
+      - name: Package desktop application
+        working-directory: client
+        run: ${{ matrix.command }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: client/release/*
+          if-no-files-found: error
