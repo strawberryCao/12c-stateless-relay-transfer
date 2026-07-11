@@ -1,0 +1,27 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    STATELESS_RELAY_CONSOLE_CONFIG=/run/12c/console_server.config.json
+
+RUN useradd --system --uid 10001 --create-home app
+WORKDIR /app/server
+
+COPY server/local_secrets ./local_secrets
+COPY server/console/requirements.txt ./console/requirements.txt
+RUN pip install -r ./console/requirements.txt
+COPY server/console ./console
+COPY deploy/render_config.py /opt/12c/render_config.py
+COPY deploy/config/console_server.config.template.json /opt/12c/config/console_server.config.template.json
+COPY deploy/entrypoints/console.sh /usr/local/bin/console-entrypoint
+
+RUN chmod 0755 /usr/local/bin/console-entrypoint \
+    && mkdir -p /run/12c \
+    && chown -R app:app /run/12c /app/server
+
+USER app
+WORKDIR /app/server/console
+
+EXPOSE 8070
+ENTRYPOINT ["/usr/local/bin/console-entrypoint"]

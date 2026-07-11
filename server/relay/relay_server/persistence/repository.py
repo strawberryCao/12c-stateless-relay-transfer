@@ -15,6 +15,27 @@ def compute_block_hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _token_prefix(token: str) -> str:
+    return token[:8]
+
+
+ADMIN_DB_TABLES: tuple[str, ...] = (
+    "blocks",
+    "block_access_events",
+    "block_sweep_runs",
+)
+
+ADMIN_DB_PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
+    "blocks": ("token",),
+    "block_access_events": ("event_id",),
+    "block_sweep_runs": ("run_id",),
+}
+
+
 class BlockRepository:
     """token ↔ 磁盘路径 映射（关系型 SQLite）。"""
 
@@ -35,6 +56,38 @@ class BlockRepository:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
+                """,
+            )
+            # 只记录访问结果和 token 摘要，避免把文件内容或文件名写入数据库。
+            await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS block_access_events (
+                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    token_hash TEXT NOT NULL,
+                    token_prefix TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    size_bytes INTEGER,
+                    detail TEXT,
+                    created_at TEXT NOT NULL
+                )
+                """,
+            )
+            await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS block_sweep_runs (
+                    run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    expired_from_db INTEGER NOT NULL,
+                    orphan_files INTEGER NOT NULL,
+                    total_removed INTEGER NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """,
+            )
+            await db.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_block_access_events_time
+                ON block_access_events(created_at)
                 """,
             )
             await db.commit()
@@ -125,30 +178,79 @@ class BlockRepository:
             rows = await cursor.fetchall()
             return [str(row[0]) for row in rows]
 
+    async def record_block_access(
+        self,
+        *,
+        token: str,
+        action: str,
+        status: str,
+        size_bytes: int | None = None,
+        detail: str | None = None,
+    ) -> None:
+        async with aiosqlite.connect(self._database_path) as db:
+            await db.execute(
+                """
+                INSERT INTO block_access_events (
+                    token_hash, token_prefix, action, status,
+                    size_bytes, detail, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    _hash_token(token),
+                    _token_prefix(token),
+                    action,
+                    status,
+                    size_bytes,
+                    detail,
+                    utc_now_iso(),
+                ),
+            )
+            await db.commit()
+
+    async def record_block_sweep_run(
+        self,
+        *,
+        expired_from_db: int,
+        orphan_files: int,
+    ) -> None:
+        total = expired_from_db + orphan_files
+        async with aiosqlite.connect(self._database_path) as db:
+            await db.execute(
+                """
+                INSERT INTO block_sweep_runs (
+                    expired_from_db, orphan_files, total_removed, created_at
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (expired_from_db, orphan_files, total, utc_now_iso()),
+            )
+            await db.commit()
+
     async def export_admin_database(self, *, row_limit: int = 500) -> dict[str, object]:
+        order_by = {
+            "blocks": "updated_at DESC",
+            "block_access_events": "event_id DESC",
+            "block_sweep_runs": "run_id DESC",
+        }
+        tables: dict[str, object] = {}
         async with aiosqlite.connect(self._database_path) as db:
             db.row_factory = aiosqlite.Row
-            cursor = await db.execute("SELECT COUNT(*) FROM blocks")
-            count_row = await cursor.fetchone()
-            total = int(count_row[0]) if count_row is not None else 0
-            cursor = await db.execute(
-                "SELECT token, disk_path, block_hash, size_bytes, created_at, updated_at "
-                "FROM blocks ORDER BY updated_at DESC LIMIT ?",
-                (row_limit,),
-            )
-            rows = await cursor.fetchall()
-            table_rows = [{key: row[key] for key in row.keys()} for row in rows]
-        return {
-            "rowLimit": row_limit,
-            "tables": {
-                "blocks": {
+            for table in ADMIN_DB_TABLES:
+                cursor = await db.execute(f"SELECT COUNT(*) FROM {table}")
+                count_row = await cursor.fetchone()
+                total = int(count_row[0]) if count_row is not None else 0
+                cursor = await db.execute(
+                    f"SELECT * FROM {table} ORDER BY {order_by[table]} LIMIT ?",
+                    (row_limit,),
+                )
+                rows = await cursor.fetchall()
+                table_rows = [{key: row[key] for key in row.keys()} for row in rows]
+                tables[table] = {
                     "totalRows": total,
                     "truncated": total > len(table_rows),
-                    "primaryKey": ["token"],
+                    "primaryKey": list(ADMIN_DB_PRIMARY_KEYS[table]),
                     "rows": table_rows,
-                },
-            },
-        }
+                }
+        return {"rowLimit": row_limit, "tables": tables}
 
     async def delete_admin_db_row(
         self,
@@ -156,15 +258,18 @@ class BlockRepository:
         table: str,
         keys: dict[str, object],
     ) -> bool:
-        if table != "blocks":
+        if table not in ADMIN_DB_PRIMARY_KEYS:
             raise ValueError(f"table not deletable: {table}")
-        token = keys.get("token")
-        if not isinstance(token, str) or not token:
-            raise ValueError("missing primary key column: token")
+        pk_columns = ADMIN_DB_PRIMARY_KEYS[table]
+        missing = [column for column in pk_columns if column not in keys]
+        if missing:
+            raise ValueError(f"missing primary key columns: {', '.join(missing)}")
+        where = " AND ".join(f"{column} = ?" for column in pk_columns)
+        values = [keys[column] for column in pk_columns]
         async with aiosqlite.connect(self._database_path) as db:
             cursor = await db.execute(
-                "DELETE FROM blocks WHERE token = ?",
-                (token,),
+                f"DELETE FROM {table} WHERE {where}",
+                values,
             )
             await db.commit()
             return cursor.rowcount > 0

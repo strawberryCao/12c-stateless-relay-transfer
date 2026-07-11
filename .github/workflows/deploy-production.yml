@@ -1,0 +1,98 @@
+name: Deploy production server
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_domain:
+        description: Web/PWA domain, for example app.example.com
+        required: true
+        type: string
+      api_domain:
+        description: Public Registry client API domain
+        required: true
+        type: string
+      relay_domain:
+        description: Public Relay data-plane domain
+        required: true
+        type: string
+      acme_email:
+        description: Email for TLS certificate notifications
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+
+    env:
+      SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+      SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+      SSH_PORT: ${{ secrets.PRODUCTION_SSH_PORT }}
+      SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+      APP_DOMAIN: ${{ inputs.app_domain }}
+      API_DOMAIN: ${{ inputs.api_domain }}
+      RELAY_DOMAIN: ${{ inputs.relay_domain }}
+      ACME_EMAIL: ${{ inputs.acme_email }}
+
+    steps:
+      - name: Validate deployment inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?missing PRODUCTION_SSH_HOST secret}"
+          : "${SSH_USER:?missing PRODUCTION_SSH_USER secret}"
+          : "${SSH_PRIVATE_KEY:?missing PRODUCTION_SSH_PRIVATE_KEY secret}"
+          : "${SSH_KNOWN_HOSTS:?missing PRODUCTION_SSH_KNOWN_HOSTS secret}"
+          for domain in "$APP_DOMAIN" "$API_DOMAIN" "$RELAY_DOMAIN"; do
+            [[ "$domain" =~ ^[A-Za-z0-9.-]+$ ]] && [[ "$domain" == *.* ]] || {
+              echo "invalid domain: $domain" >&2
+              exit 1
+            }
+          done
+          [[ "$ACME_EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || {
+            echo "invalid ACME email" >&2
+            exit 1
+          }
+
+      - name: Configure pinned SSH host identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_deploy"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 700 "$HOME/.ssh"
+          chmod 600 "$HOME/.ssh/id_deploy" "$HOME/.ssh/known_hosts"
+
+      - name: Deploy through SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          port="${SSH_PORT:-22}"
+          ssh \
+            -i "$HOME/.ssh/id_deploy" \
+            -p "$port" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            bash -s -- "$APP_DOMAIN" "$API_DOMAIN" "$RELAY_DOMAIN" "$ACME_EMAIL" <<'REMOTE'
+          set -euo pipefail
+          repo="$HOME/12c-stateless-relay-transfer"
+          if [[ ! -d "$repo/.git" ]]; then
+            git clone https://github.com/strawberryCao/12c-stateless-relay-transfer.git "$repo"
+          fi
+          cd "$repo"
+          git fetch --prune origin main
+          git checkout -B main origin/main
+          bash deploy/configure-production.sh "$1" "$2" "$3" "$4"
+          REMOTE

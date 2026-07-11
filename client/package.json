@@ -1,6 +1,9 @@
 {
   "name": "stateless-relay-client",
+  "version": "0.1.0",
+  "description": "12C end-to-end encrypted stateless relay file transfer client",
   "private": true,
+  "main": "electron/main.js",
   "workspaces": [
     "transfer",
     "app",
@@ -9,8 +12,6 @@
   "scripts": {
     "build": "powershell -ExecutionPolicy Bypass -File ./build.ps1",
     "build:sh": "bash ./build.sh",
-    "build:ts": "powershell -ExecutionPolicy Bypass -File ./build-ts.ps1",
-    "build:ts:sh": "bash ./build-ts.sh",
     "build:prod": "powershell -ExecutionPolicy Bypass -File ./build.ps1 -Production",
     "build:prod:sh": "bash ./build.sh --production",
     "start": "powershell -ExecutionPolicy Bypass -File ./start.ps1",
@@ -22,6 +23,13 @@
     "build:openssl:wasm": "powershell -ExecutionPolicy Bypass -File ./core/twelve_c_wasm/build-openssl-emscripten.ps1",
     "build:openssl:wasm:sh": "bash ./core/twelve_c_wasm/build-openssl-emscripten.sh",
     "build:native": "powershell -ExecutionPolicy Bypass -File ./core/build-native.ps1",
-    "build:native:sh": "bash ./core/build-native.sh"
+    "build:native:sh": "bash ./core/build-native.sh",
+    "electron:dev": "electron electron/main.js --dev",
+    "electron:prepare": "node electron/prepare-config.mjs",
+    "electron:build": "npm run electron:prepare && electron-builder --config electron-builder.yml"
+  },
+  "devDependencies": {
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3"
   }
 }

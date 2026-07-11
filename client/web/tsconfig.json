@@ -10,7 +10,11 @@
     "isolatedModules": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@stateless-relay/transfer": ["../transfer/src/index.ts"],
+      "@stateless-relay/app": ["../app/src/index.ts"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

@@ -1,0 +1,92 @@
+name: Build Windows desktop app
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: Public HTTPS app URL, for example https://app.example.com
+        required: true
+        type: string
+  pull_request:
+    branches:
+      - main
+    paths:
+      - client/electron/**
+      - client/package.json
+      - client/package-lock.json
+      - client/electron-builder.yml
+      - .github/workflows/build-windows-desktop.yml
+
+permissions:
+  contents: read
+
+env:
+  TWELVEC_APP_URL: ${{ inputs.app_url || vars.PUBLIC_APP_URL || 'https://app.example.com' }}
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --loglevel=error
+
+      - name: Validate public URL
+        shell: pwsh
+        run: |
+          $uri = [Uri]$env:TWELVEC_APP_URL
+          if ($uri.Scheme -ne 'https') {
+            throw 'app_url must use HTTPS'
+          }
+          if (-not [string]::IsNullOrEmpty($uri.UserInfo)) {
+            throw 'app_url must not contain credentials'
+          }
+
+      - name: Build NSIS installer
+        id: build
+        continue-on-error: true
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm run electron:build *> electron-build.log
+          $code = $LASTEXITCODE
+          Get-Content electron-build.log -Tail 120
+          exit $code
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: electron-build-log
+          path: client/electron-build.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Fail when installer build failed
+        if: steps.build.outcome == 'failure'
+        shell: pwsh
+        run: throw 'Electron installer build failed; inspect electron-build-log.'
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: 12C-Transfer-Windows-x64
+          path: client/release/*.exe
+          if-no-files-found: error
+          retention-days: 30

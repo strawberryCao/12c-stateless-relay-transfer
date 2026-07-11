@@ -13,10 +13,18 @@ REGISTRY_DB_PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "token_relay_placements": ("token", "relay_id"),
     "relay_registry_keys": ("relay_id", "key_id"),
     "relay_block_auth_keys": ("relay_id", "key_id"),
+    "relay_heartbeat_events": ("event_id",),
+    "token_reservation_batches": ("batch_id",),
+    "token_reservation_items": ("batch_id", "token_hash"),
+    "token_resolution_events": ("event_id",),
+    "replica_abandon_events": ("event_id",),
+    "registry_admin_events": ("event_id",),
 }
 
 RELAY_DB_PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "blocks": ("token",),
+    "block_access_events": ("event_id",),
+    "block_sweep_runs": ("run_id",),
 }
 
 

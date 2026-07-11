@@ -3,13 +3,57 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="12C 端到端加密文件传输 — 无状态中继，12位带外凭证" />
+    <meta name="theme-color" content="#ffffff" />
     <title>12C 文件传输</title>
+    <!-- 预连接默认 Registry，加速首次 API 调用 -->
+    <link rel="preconnect" href="http://127.0.0.1:8080" />
+    <link rel="dns-prefetch" href="http://127.0.0.1:8080" />
+    <!-- 预加载 WASM 加密模块 -->
+    <link rel="modulepreload" href="/wasm/twelve_c_cryptography.js" />
+    <!-- 内联启动屏关键 CSS，消除白屏闪烁 -->
+    <style>
+      :root{color-scheme:light;--bg:#ffffff;--surface:#f8fafc;--surface2:#f1f5f9;--border:#e2e8f0;--text:#1e293b;--text-strong:#0f172a;--muted:#64748b;--accent:#0369a1;--accent-dim:#0c4a6e;--radius:10px;font-family:"Segoe UI",system-ui,sans-serif}
+      *{box-sizing:border-box}
+      body{margin:0;background:var(--bg);color:var(--text);min-height:100vh}
+      .boot-screen{min-height:100vh;display:grid;place-items:center;padding:1.5rem}
+      .boot-card{width:min(420px,100%);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;box-shadow:0 8px 24px rgba(15,23,42,.08)}
+      .brand{font-weight:700;font-size:1.1rem;color:var(--text-strong);margin-bottom:.75rem}
+      .boot-status{margin:0 0 1rem;color:var(--muted)}
+      .boot-progress{height:8px;background:var(--surface2);border-radius:999px;overflow:hidden}
+      .boot-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#0c4a6e,#0369a1);transition:width .2s ease}
+    </style>
     <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><defs><linearGradient id='g' x1='4' y1='2' x2='20' y2='21'><stop offset='0' stop-color='%237c7bff'/><stop offset='1' stop-color='%2322d3ee'/></linearGradient></defs><path d='M12 2 4 5.5v6c0 5 3.4 8.7 8 9.5 4.6-.8 8-4.5 8-9.5v-6L12 2z' fill='url(%23g)'/></svg>" />
   </head>
   <body>
     <div id="boot-screen" class="boot-screen">
       <div class="boot-card">
-        <div class="brand">12C Transfer</div>
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M12 2 4 5.5v6c0 5 3.4 8.7 8 9.5 4.6-.8 8-4.5 8-9.5v-6L12 2z"
+                fill="url(#bootMarkGrad)"
+              />
+              <path
+                d="m9 12 2.1 2.1L15.5 9.5"
+                fill="none"
+                stroke="#0a0e17"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <defs>
+                <linearGradient id="bootMarkGrad" x1="4" y1="2" x2="20" y2="21" gradientUnits="userSpaceOnUse">
+                  <stop offset="0" stop-color="#7c7bff" />
+                  <stop offset="1" stop-color="#22d3ee" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </span>
+          <span class="brand-text">12C <em>Transfer</em></span>
+        </div>
         <p id="boot-status" class="boot-status">正在加载加密模块…</p>
         <div class="boot-progress" aria-hidden="true">
           <div id="boot-progress-bar" class="boot-progress-bar"></div>
@@ -19,16 +63,105 @@
 
     <div id="app" class="app hidden">
       <aside class="sidebar">
-        <div class="brand">12C Transfer</div>
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M12 2 4 5.5v6c0 5 3.4 8.7 8 9.5 4.6-.8 8-4.5 8-9.5v-6L12 2z"
+                fill="url(#sideMarkGrad)"
+              />
+              <path
+                d="m9 12 2.1 2.1L15.5 9.5"
+                fill="none"
+                stroke="#0a0e17"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <defs>
+                <linearGradient id="sideMarkGrad" x1="4" y1="2" x2="20" y2="21" gradientUnits="userSpaceOnUse">
+                  <stop offset="0" stop-color="#7c7bff" />
+                  <stop offset="1" stop-color="#22d3ee" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </span>
+          <span class="brand-text">12C <em>Transfer</em></span>
+        </div>
         <nav class="nav">
-          <button type="button" class="nav-item active" data-panel="send">发送</button>
-          <button type="button" class="nav-item" data-panel="receive">接收</button>
-          <button type="button" class="nav-item" data-panel="settings">设置</button>
+          <button type="button" class="nav-item active" data-panel="send">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M3.4 11.6 20.2 3.8a.9.9 0 0 1 1.2 1.2l-4.9 16.8a.9.9 0 0 1-1.66.14L11.8 15l-6.94-2.99a.9.9 0 0 1 .1-1.7 v0Z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M11.8 15 20.4 5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+            <span class="nav-label">发送</span>
+          </button>
+          <button type="button" class="nav-item" data-panel="receive">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M4 4h16v9.5a1 1 0 0 1-1 1h-4l-2.2 2.6a1 1 0 0 1-1.6 0L9 14.5H5a1 1 0 0 1-1-1V4z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M12 7v4.2m0 0-2-2m2 2 2-2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+            <span class="nav-label">接收</span>
+          </button>
+          <button type="button" class="nav-item" data-panel="settings">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                />
+                <path
+                  d="M19.4 13.6c.05-.53.05-1.07 0-1.6l1.6-1.28-1.6-2.77-1.9.4a7.4 7.4 0 0 0-1.38-.8l-.3-1.95H9.18l-.3 1.95a7.4 7.4 0 0 0-1.38.8l-1.9-.4-1.6 2.77 1.6 1.28c-.05.53-.05 1.07 0 1.6l-1.6 1.28 1.6 2.77 1.9-.4c.42.33.89.6 1.38.8l.3 1.95h5.64l.3-1.95c.49-.2.96-.47 1.38-.8l1.9.4 1.6-2.77-1.6-1.28Z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+            <span class="nav-label">设置</span>
+          </button>
         </nav>
         <div class="sidebar-foot">
           <div class="registry-pill">
-            <span class="registry-pill-label">Registry</span>
-            <span id="registry-url-label" class="registry-pill-value">—</span>
+            <span class="registry-pill-dot" aria-hidden="true"></span>
+            <span class="registry-pill-text">
+              <span class="registry-pill-label">Registry</span>
+              <span id="registry-url-label" class="registry-pill-value">—</span>
+            </span>
           </div>
         </div>
       </aside>
@@ -47,7 +180,28 @@
             <div class="send-row">
               <label id="send-file-dropzone" class="file-dropzone" for="send-file-input">
                 <input id="send-file-input" type="file" class="file-input-hidden" />
-                <span id="send-file-empty" class="file-dropzone-empty">点击以选择文件</span>
+                <span id="send-file-empty" class="file-dropzone-empty">
+                  <span class="file-dropzone-empty-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path
+                        d="M12 15.5V4m0 0-4 4m4-4 4 4"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.6"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M4.5 15.5V18a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.6"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                  </span>
+                  <span>点击以选择文件，或拖拽到此处</span>
+                </span>
                 <span id="send-file-selected" class="file-dropzone-selected hidden">
                   <span id="send-file-icon" class="file-icon" aria-hidden="true"></span>
                   <span id="send-file-name" class="file-name"></span>

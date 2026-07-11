@@ -1,0 +1,13 @@
+{
+  "host": "0.0.0.0",
+  "port": 8070,
+  "registryBaseUrl": "http://registry:8080",
+  "relayBaseUrl": "http://relay:9090",
+  "registryAdminApiKey": "${REGISTRY_ADMIN_API_KEY}",
+  "relayAdminApiKey": "${RELAY_ADMIN_API_KEY}",
+  "staticDir": "/app/server/console/static",
+  "registryDir": "/tmp/disabled-registry",
+  "relayDir": "/tmp/disabled-relay",
+  "registryConfig": "/tmp/registry_server.config.json",
+  "relayConfig": "/tmp/relay_server.config.json"
+}

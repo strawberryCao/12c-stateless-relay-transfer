@@ -14,6 +14,7 @@ import {
   resolveRegistryBaseUrl,
   uploadPrepared,
   type OccupiedTokenInfo,
+  type UploadProgress,
   type UploadReservationMeta,
 } from '@stateless-relay/transfer';
 import type { ClientRuntime } from './runtime.js';
@@ -38,6 +39,10 @@ import {
   getEffectiveCredentialStyle,
   saveStoredCredentialStyle,
 } from './credential-style-settings.js';
+
+// ============================================================================
+// 类型定义
+// ============================================================================
 
 type PanelName = 'send' | 'receive' | 'settings';
 
@@ -95,6 +100,10 @@ interface Elements {
   settingsInfo: HTMLElement;
 }
 
+// ============================================================================
+// 全局状态
+// ============================================================================
+
 let runtime: ClientRuntime | null = null;
 let selectedFile: File | null = null;
 let activePanel: PanelName = 'send';
@@ -104,6 +113,25 @@ let receivedFile: { fileName: string; data: Uint8Array } | null = null;
 let receiveDownloading = false;
 let sendInProgress = false;
 
+// ============================================================================
+// 工具函数
+// ============================================================================
+
+/** 防抖：限制高频调用，默认延迟 150ms */
+function debounce<T extends (...args: never[]) => void>(
+  fn: T,
+  delayMs = 150,
+): (...args: Parameters<T>) => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Parameters<T>) => {
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      fn(...args);
+    }, delayMs);
+  };
+}
+
 type ReceiveDownloadState = 'idle' | 'ready' | 'downloading' | 'done';
 
 const RECEIVE_DOWNLOAD_LABELS: Record<ReceiveDownloadState, string> = {
@@ -112,6 +140,10 @@ const RECEIVE_DOWNLOAD_LABELS: Record<ReceiveDownloadState, string> = {
   downloading: '下载中',
   done: '已下载',
 };
+
+// ============================================================================
+// DOM 元素收集
+// ============================================================================
 
 function $(id: string): HTMLElement {
   const node = document.getElementById(id);
@@ -199,6 +231,10 @@ function showApp(): void {
   el.app.classList.remove('hidden');
 }
 
+// ============================================================================
+// 导航与面板切换
+// ============================================================================
+
 function switchPanel(panel: PanelName): void {
   activePanel = panel;
   el.navItems.forEach((item) => {
@@ -213,6 +249,10 @@ function updateRegistryLabel(): void {
   el.registryUrlLabel.textContent = runtime?.registryUrl ?? '—';
 }
 
+// ============================================================================
+// 运行时与启动
+// ============================================================================
+
 async function reloadRuntime(): Promise<void> {
   setBootProgress(0.35, '正在连接 Registry…');
   runtime = await bootstrapClientRuntime();
@@ -226,6 +266,10 @@ function requireRuntime(): ClientRuntime {
   }
   return runtime;
 }
+
+// ============================================================================
+// 发送面板 - 文件选择与 UI 状态
+// ============================================================================
 
 function clearUploadStamp(): void {
   el.sendUploadStamp.classList.remove('visible');
@@ -305,6 +349,10 @@ function formatUploadReservationDegradedMessage(
   return `${parts.join('；')}（当前 Relay 存储能力或冗余不足）。`;
 }
 
+// ============================================================================
+// 发送面板 - 上传流程
+// ============================================================================
+
 async function handleSend(): Promise<void> {
   clearBanner(el.sendError);
   clearBanner(el.sendInfo);
@@ -357,7 +405,7 @@ async function handleSend(): Promise<void> {
             registry: client.stack.registry,
             ttlSeconds: getEffectiveFileTtlSeconds(),
           },
-          (progress) => {
+          (progress: UploadProgress) => {
             const ratio = progress.total > 0 ? progress.completed / progress.total : 0;
             el.sendProgressBar.style.width = `${Math.round(ratio * 100)}%`;
             el.sendProgressText.textContent = `${progress.completed} / ${progress.total}`;
@@ -381,7 +429,7 @@ async function handleSend(): Promise<void> {
           throw error;
         }
 
-        lastOccupiedTokens = error.occupiedTokens;
+        lastOccupiedTokens = (error as RegistryTokenOccupiedError).occupiedTokens;
         display.startReelSpinning();
 
         if (attempt < maxAttempts) {
@@ -402,6 +450,10 @@ async function handleSend(): Promise<void> {
     updateSendControls();
   }
 }
+
+// ============================================================================
+// 接收面板 - 文件下载与保存
+// ============================================================================
 
 function saveBlob(filename: string, data: Uint8Array): void {
   const copy = new Uint8Array(data);
@@ -502,6 +554,10 @@ async function handleReceiveDownload(): Promise<void> {
   }
 }
 
+// ============================================================================
+// 设置面板 - 文件有效期 (TTL)
+// ============================================================================
+
 function applyDurationPartsToInputs(parts: ReturnType<typeof durationPartsFromSeconds>): void {
   el.fileTtlHoursInput.value = String(parts.hours);
   el.fileTtlMinutesInput.value = String(parts.minutes);
@@ -541,6 +597,10 @@ function handleConfirmFileTtl(): void {
   updateFileTtlCurrentLabel(parts.totalSeconds);
   showBanner(el.settingsInfo, '文件有效时间已更新。');
 }
+
+// ============================================================================
+// 设置面板 - 凭证风格
+// ============================================================================
 
 function lettersEnabledForCredentialStyle(): boolean {
   return el.credentialStyleUppercase.checked || el.credentialStyleLowercase.checked;
@@ -612,6 +672,10 @@ function handleConfirmCredentialStyle(): void {
   showBanner(el.settingsInfo, '凭证风格已更新。');
 }
 
+// ============================================================================
+// 设置面板 - Registry 连接
+// ============================================================================
+
 async function handleSaveSettings(): Promise<void> {
   clearBanner(el.settingsError);
   clearBanner(el.settingsInfo);
@@ -659,6 +723,10 @@ async function copyCredential(): Promise<void> {
   await navigator.clipboard.writeText(value);
   showBanner(el.sendInfo, '凭证已复制到剪贴板。');
 }
+
+// ============================================================================
+// 事件绑定
+// ============================================================================
 
 function bindEvents(): void {
   el.navItems.forEach((item) => {
@@ -730,7 +798,15 @@ function bindEvents(): void {
     });
   }
 
+  const debouncedSyncTtl = debounce(() => {
+    const parts = readDurationInputs();
+    applyDurationPartsToInputs(parts);
+  }, 200);
+
   for (const input of [el.fileTtlHoursInput, el.fileTtlMinutesInput, el.fileTtlSecondsInput]) {
+    input.addEventListener('input', () => {
+      debouncedSyncTtl();
+    });
     input.addEventListener('change', () => {
       const parts = readDurationInputs();
       applyDurationPartsToInputs(parts);

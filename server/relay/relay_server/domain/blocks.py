@@ -88,6 +88,10 @@ class BlockService:
             active_relative_paths=active_paths,
             max_age_seconds=max_age,
         )
+        await self._repository.record_block_sweep_run(
+            expired_from_db=expired_count,
+            orphan_files=orphan_count,
+        )
         return BlockSweepResult(
             expired_from_db=expired_count,
             orphan_files=orphan_count,
@@ -96,18 +100,49 @@ class BlockService:
     async def get_block(self, token: str) -> bytes:
         record = await self._repository.get(token)
         if record is None:
+            await self._repository.record_block_access(
+                token=token,
+                action="get",
+                status="missing",
+            )
             raise BlockStoreError("block not found", status_code=404)
 
         data = await self._disk_store.read(str(record["disk_path"]))
         if data is None:
             await self._repository.delete(token)
+            await self._repository.record_block_access(
+                token=token,
+                action="get",
+                status="missing_file",
+                detail="database row existed but disk file was missing",
+            )
             raise BlockStoreError("block not found", status_code=404)
+        await self._repository.record_block_access(
+            token=token,
+            action="get",
+            status="ok",
+            size_bytes=len(data),
+        )
         return data
 
     async def put_block(self, token: str, data: bytes) -> None:
         if len(data) == 0:
+            await self._repository.record_block_access(
+                token=token,
+                action="put",
+                status="rejected",
+                size_bytes=0,
+                detail="empty body",
+            )
             raise BlockStoreError("empty body", status_code=400)
         if len(data) > self._config.max_body_bytes:
+            await self._repository.record_block_access(
+                token=token,
+                action="put",
+                status="rejected",
+                size_bytes=len(data),
+                detail="body exceeds maxBodyBytes",
+            )
             raise BlockStoreError(
                 f"body exceeds maxBodyBytes ({self._config.max_body_bytes})",
                 status_code=413,
@@ -117,7 +152,17 @@ class BlockService:
         existing = await self._repository.get(token)
 
         if existing is not None:
-            await self._verify_overwrite(token=token, block_hash=block_hash)
+            try:
+                await self._verify_overwrite(token=token, block_hash=block_hash)
+            except BlockStoreError as exc:
+                await self._repository.record_block_access(
+                    token=token,
+                    action="put_overwrite",
+                    status="rejected",
+                    size_bytes=len(data),
+                    detail=str(exc),
+                )
+                raise
             disk_path = str(existing["disk_path"])
             try:
                 await self._disk_store.write(token, data)
@@ -132,6 +177,13 @@ class BlockService:
                     previous = await self._disk_store.read(disk_path)
                     if previous is not None:
                         await self._disk_store.write(token, previous)
+                await self._repository.record_block_access(
+                    token=token,
+                    action="put_overwrite",
+                    status="registry_failed",
+                    size_bytes=len(data),
+                    detail=str(exc),
+                )
                 raise BlockStoreError(
                     f"registry register failed: {exc}",
                     status_code=503,
@@ -141,11 +193,30 @@ class BlockService:
                     previous = await self._disk_store.read(disk_path)
                     if previous is not None:
                         await self._disk_store.write(token, previous)
+                await self._repository.record_block_access(
+                    token=token,
+                    action="put_overwrite",
+                    status="failed",
+                    size_bytes=len(data),
+                )
                 raise
+            await self._repository.record_block_access(
+                token=token,
+                action="put_overwrite",
+                status="ok",
+                size_bytes=len(data),
+            )
             return
 
         stored = await self._repository.count()
         if stored >= self._config.max_blocks:
+            await self._repository.record_block_access(
+                token=token,
+                action="put_create",
+                status="rejected",
+                size_bytes=len(data),
+                detail="relay storage capacity reached",
+            )
             raise BlockStoreError("relay storage capacity reached", status_code=507)
 
         relative_path = self._disk_store.relative_disk_path(token)
@@ -161,6 +232,13 @@ class BlockService:
         except httpx.HTTPError as exc:
             await self._disk_store.remove(relative_path)
             await self._repository.delete(token)
+            await self._repository.record_block_access(
+                token=token,
+                action="put_create",
+                status="registry_failed",
+                size_bytes=len(data),
+                detail=str(exc),
+            )
             raise BlockStoreError(
                 f"registry register failed: {exc}",
                 status_code=503,
@@ -168,7 +246,19 @@ class BlockService:
         except Exception:
             await self._disk_store.remove(relative_path)
             await self._repository.delete(token)
+            await self._repository.record_block_access(
+                token=token,
+                action="put_create",
+                status="failed",
+                size_bytes=len(data),
+            )
             raise
+        await self._repository.record_block_access(
+            token=token,
+            action="put_create",
+            status="ok",
+            size_bytes=len(data),
+        )
 
     async def _verify_overwrite(self, *, token: str, block_hash: str) -> None:
         try:

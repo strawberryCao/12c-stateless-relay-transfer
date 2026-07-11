@@ -50,15 +50,19 @@ class DiskBlockStore:
         if not self._data_dir.is_dir():
             return 0
 
-        for path in self._data_dir.rglob("*.bin"):
-            if not path.is_file():
+        # 先快照再删除，避免 Windows rglob 在目录被删后继续扫描时报错。
+        for path in list(self._data_dir.rglob("*.bin")):
+            try:
+                if not path.is_file():
+                    continue
+                relative = str(path.relative_to(self._data_dir))
+                if relative in active_relative_paths:
+                    continue
+                if path.stat().st_mtime > cutoff:
+                    continue
+                path.unlink()
+            except FileNotFoundError:
                 continue
-            relative = str(path.relative_to(self._data_dir))
-            if relative in active_relative_paths:
-                continue
-            if path.stat().st_mtime > cutoff:
-                continue
-            path.unlink()
             removed += 1
             self._prune_empty_parent(path.parent)
         return removed
