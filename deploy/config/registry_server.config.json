@@ -1,0 +1,18 @@
+{
+  "host": "0.0.0.0",
+  "port": 8080,
+  "databasePath": "/data/registry.db",
+  "registryApiKeyInitialUses": 100,
+  "placementPolicy": {
+    "stripeTargetRelays": 1,
+    "maxFileReplicaCount": 0,
+    "maxReplicasPerBlock": 1,
+    "minGrantTtlSeconds": 3600,
+    "clockSkewSeconds": 60,
+    "maxRequestedTtlSeconds": 86400,
+    "ttlDegradeStepDivisor": 4
+  },
+  "relayHeartbeatStaleSeconds": 120,
+  "heartbeatUrlPolicy": "strict",
+  "allowlist": []
+}
