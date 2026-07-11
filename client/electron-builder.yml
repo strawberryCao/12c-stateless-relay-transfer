@@ -1,0 +1,30 @@
+appId: io.github.strawberrycao.twelvec
+productName: 12C Transfer
+artifactName: 12C-Transfer-${version}-${arch}.${ext}
+
+asar: true
+
+directories:
+  output: release
+
+files:
+  - electron/main.js
+  - electron/app.config.json
+  - package.json
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 12C Transfer
+  deleteAppDataOnUninstall: false
+
+publish: null
