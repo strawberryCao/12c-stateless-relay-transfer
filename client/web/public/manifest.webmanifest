@@ -1,0 +1,18 @@
+{
+  "name": "12C Transfer",
+  "short_name": "12C",
+  "description": "End-to-end encrypted stateless relay file transfer",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0369a1",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
