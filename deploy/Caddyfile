@@ -8,6 +8,7 @@
   header {
     -Server
     X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
     Referrer-Policy "no-referrer"
     Permissions-Policy "camera=(), microphone=(), geolocation=()"
     Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -17,6 +18,10 @@
 {$APP_DOMAIN} {
   import security_headers
   root * /srv
+
+  @runtime_files path /relay.config.json /service-worker.js /manifest.webmanifest
+  header @runtime_files Cache-Control "no-store"
+
   try_files {path} /index.html
   file_server
 }
@@ -30,6 +35,9 @@
   }
 
   handle @public_client_api {
+    request_body {
+      max_size 4MB
+    }
     reverse_proxy registry:8080
   }
 
@@ -47,6 +55,9 @@
   }
 
   handle @public_block_api {
+    request_body {
+      max_size 17MB
+    }
     reverse_proxy relay:9090
   }
 
