@@ -3,20 +3,24 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    STATELESS_RELAY_REGISTRY_CONFIG=/opt/12c/config/registry_server.config.json
+    STATELESS_RELAY_REGISTRY_CONFIG=/run/12c/registry_server.config.json
 
 RUN useradd --system --uid 10001 --create-home app
 WORKDIR /app/server
 
-COPY server/local_secrets.py ./local_secrets.py
+COPY server/local_secrets ./local_secrets
 COPY server/registry/requirements.txt ./registry/requirements.txt
 RUN pip install -r ./registry/requirements.txt
 COPY server/registry ./registry
 COPY deploy/config/registry_server.config.json /opt/12c/config/registry_server.config.json
+COPY deploy/entrypoints/registry.sh /usr/local/bin/registry-entrypoint
 
-RUN mkdir -p /data && chown -R app:app /data /app/server
+RUN chmod 0755 /usr/local/bin/registry-entrypoint \
+    && mkdir -p /data /run/12c \
+    && chown -R app:app /data /run/12c /app/server
+
 USER app
 WORKDIR /app/server/registry
 
 EXPOSE 8080
-CMD ["python", "-m", "registry_server"]
+ENTRYPOINT ["/usr/local/bin/registry-entrypoint"]
