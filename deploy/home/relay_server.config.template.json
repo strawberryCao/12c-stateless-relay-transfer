@@ -3,7 +3,7 @@
   "port": 9090,
   "publicBaseUrl": "${PUBLIC_RELAY_BASE_URL}",
   "maxBodyBytes": 16777216,
-  "maxBlocks": 5000,
+  "maxBlocks": 500,
   "dataDir": "/data/blocks",
   "databasePath": "/data/relay.db",
   "heartbeatIntervalSeconds": 30,
