@@ -33,9 +33,11 @@ pnpm-debug.log*
 node_modules/
 **/node_modules/
 
-# TypeScript / Vite 构建产物
+# TypeScript / Vite / Electron 构建产物
 client/**/dist/
 client/**/.vite/
+client/release/
+client/electron/app.config.json
 *.tsbuildinfo
 
 # WASM 二进制（由 build-wasm + copy:wasm 生成）
